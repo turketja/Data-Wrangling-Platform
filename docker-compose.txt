@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Main UI - streamlit app that provides unified access
+  ui:
+    build:
+      context: ./ui
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/data
+      - ./ui:/app
+    environment:
+      - JUPYTER_URL=http://jupyter:8888
+      - POSTGRES_USER=datauser
+      - POSTGRES_PASSWORD=datapass
+      - POSTGRES_DB=datadb
+      - POSTGRES_HOST=postgres
+      - CHATBOT_URL=http://chatbot:8000
+      - MINIO_URL=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    depends_on:
+      - jupyter
+      - postgres
+      - chatbot
+      - minio
+
+  # JupyterLab for interactive data analysis
+  jupyter:
+    image: jupyter/datascience-notebook:latest
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/home/jovyan/data
+      - ./notebooks:/home/jovyan/notebooks
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      start-notebook.sh 
+      --NotebookApp.token='' 
+      --NotebookApp.password='' 
+      --NotebookApp.allow_origin='*'
+
+  # PostgreSQL for structured data storage
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=datauser
+      - POSTGRES_PASSWORD=datapass
+      - POSTGRES_DB=datadb
+
+  # MinIO for S3-compatible object storage
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+
+  # Chatbot service for querying data
+  chatbot:
+    build:
+      context: ./chatbot
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      - POSTGRES_USER=datauser
+      - POSTGRES_PASSWORD=datapass
+      - POSTGRES_DB=datadb
+      - POSTGRES_HOST=postgres
+      - MINIO_URL=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+
+volumes:
+  postgres-data:
+  minio-data:
